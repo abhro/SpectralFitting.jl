@@ -23,29 +23,25 @@ _unsafe_unwrap_parameter(ptr, N, ::Additive, T::Type) =
     unsafe_wrap(Vector{T}, ptr + sizeof(T), N - 1, own = false)
 
 @inline function unsafe_parameter_vector(
-    alloc_model::Vector{<:AbstractSpectralModel{T}},
-) where {T}
-    model = first(alloc_model)
-    N = length(fieldnames(typeof(model)))
-
-    model_ptr = pointer(alloc_model)
-    ptr = Base.unsafe_convert(Ptr{T}, model_ptr)
+    model_ref::Ref{M},
+) where {M<:AbstractSpectralModel{T}} where {T}
+    N = length(fieldnames(M))
+    ptr = convert(Ptr{T}, pointer_from_objref(model_ref))
     # reinterpret as an unowned vector of `T`
-    _unsafe_unwrap_parameter(ptr, N, modelkind(model), T)
+    _unsafe_unwrap_parameter(ptr, N, modelkind(M), T)
 end
 
 # pointer hackery
 function unsafe_parameter_vector_conditioned(
-    alloc_model::Vector{<:AbstractSpectralModel{T}},
+    model_ref::Ref{<:AbstractSpectralModel{T}},
 ) where {T}
-    model = first(alloc_model)
-    if implementation(typeof(model)) == JuliaImplementation()
+    if implementation(typeof(model_ref[])) == JuliaImplementation()
         throw("This method is only for `XSPECImplementation` models.")
     end
     if !isbitstype(T)
         throw("Can only reinterpret to bits type (convert `$T`).")
     end
-    unsafe_parameter_vector(alloc_model)
+    unsafe_parameter_vector(model_ref)
 end
 
 """
@@ -240,9 +236,9 @@ macro xspecmodel(args...)
 
         function SpectralFitting.invoke!(output, input, model::$(model_name))
             # allocate the model
-            alloc_model = [model]
-            params = XSPECModels.unsafe_parameter_vector_conditioned(alloc_model)
-            XSPECModels._safe_ffi_invoke!(output, input, params, typeof(model))
+            model_ref = Ref(model)
+            params = @noinline XSPECModels.unsafe_parameter_vector_conditioned(model_ref)
+            XSPECModels._safe_ffi_invoke!(vec(output), input, params, typeof(model))
         end
 
         $(_ffi_type_guard)

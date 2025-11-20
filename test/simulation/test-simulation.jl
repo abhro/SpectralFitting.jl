@@ -14,7 +14,6 @@ result = fit(prob, LevenbergMarquadt())
 
 @test result.u ≈ [1.0, 2.0] atol = 1e-2
 
-
-# test the simulation api
+# TODO: test the simulation api
 sim_data2 = simulate(model, dummy_data.response; seed = 2)
 @test sum(sim_data2.data) ≈ 4.897 atol = 1e-2

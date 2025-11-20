@@ -79,13 +79,19 @@ If we want to specify paramters of our model at instantiation, we can do that wi
 model = PhotoelectricAbsorption() * PowerLaw(a = FitParam(3.0))
 ```
 
+Alternatively, we can modify the parameters by reaching into the corresponding model component:
+
+```@example walk
+set_value!(model.a1.a, 4.0)
+```
+
 SpectralFitting.jl adopts the SciML problem-solver abstraction, so to fit a model to data we specify a [`FittingProblem`](@ref):
 
 ```@example walk
 prob = FittingProblem(model => data)
 ```
 
-SpectralFitting.jl makes a huge wealth of optimizers availble from [Optimizations.jl](https://github.com/SciML/Optimization.jl), and others from further afield. For consistency with XSPEC, we'll use here a delayed-gratification least-squares algorithm from [LsqFit.jl](https://github.com/JuliaNLSolvers/LsqFit.jl):
+SpectralFitting.jl makes a huge wealth of optimizers available from [Optimizations.jl](https://github.com/SciML/Optimization.jl), and others from further afield. For consistency with XSPEC, we'll use here a delayed-gratification least-squares algorithm from [LsqFit.jl](https://github.com/JuliaNLSolvers/LsqFit.jl):
 
 ```@example walk
 result = fit(prob, LevenbergMarquadt())
@@ -130,18 +136,15 @@ update_model!(model, result)
 To estimate the goodness of our fit, we can mimic the `goodness` command from XSPEC. This will use the [`simulate`](@ref) function to simulate spectra for a dataset (here determined by the result), and fit the model to the simulated dataset. The fit statistic for each fit is then appended to an array, which we can use to plot a histogram:
 
 ```@example walk
-spread = goodness(result; N = 1000, seed = 42, exposure_time = data.spectrum.exposure_time)
+pcent, spread = goodness(result; N = 1000, seed = 42, exposure_time = data.spectrum.exposure_time)
+@info "%goodness = $pcent"
 histogram(spread, ylims = (0, 300), label = "Simulated")
-vline!([result.χ2], label = "Best fit")
+vline!([result[1].stats], label = "Best fit")
 ```
 
 Note we have set the random number generator seed with `seed = 42` to allow our results to be strictly reproduced.
 
-The `goodness` command will log the percent of simulations with a fit statistic better than the result, but we can equivalently calculate that ourselves:
-
-```@example walk
-count(<(result.χ2), spread) * 100 / length(spread)
-```
+The `goodness` command will return the percent of simulations with a fit statistic better than the result, in addition to the statistics of each individual trial.
 
 Next we want to calculate the flux in an energy range observed by the detector. We can do this with [`LogFlux`](@ref) or [`XS_CalculateFlux`](@ref), as they are both equivalent implementations.
 
@@ -205,8 +208,8 @@ dp = plot(data,
     yscale = :log10,
     legend = :bottomleft,
 )
-plot!(dp, result, label = "PowerLaw $(round(result.χ2))")
-plot!(dp, result2, label = "BlackBody $(round(result2.χ2))")
+plot!(dp, result, label = "PowerLaw $(round(sum(result.stats)))")
+plot!(dp, result2, label = "BlackBody $(round(sum(result2.stats)))")
 ```
 
 Or a bremsstrahlung model:
@@ -218,7 +221,7 @@ result3 = fit(prob3, LevenbergMarquadt())
 ```
 
 ```@example walk
-plot!(dp, result3, label = "Brems $(round(result3.χ2))")
+plot!(dp, result3, label = "Brems $(round(sum(result3.stats)))")
 ```
 
 Let's take a look at the residuals of these three models. There are utility methods for this in SpectralFitting.jl, but we can easily just interact with the result directly:
@@ -227,8 +230,9 @@ Let's take a look at the residuals of these three models. There are utility meth
 function calc_residuals(result)
     # select which result we want (only have one, but for generalisation to multi-model fits)
     r = result[1] 
-    y = invoke_result(r)
-    @. (r.objective - y) / sqrt(r.variance)
+    y = calculate_objective!(r, r.u)
+    obj, var = get_objective(r), get_objective_variance(r)
+    @. (obj - y) / sqrt(var)
 end
 
 domain = SpectralFitting.plotting_domain(data)
@@ -246,17 +250,25 @@ We can compose this figure with our previous one, and change to a linear x scale
 plot(dp, rp, layout = grid(2, 1, heights = [0.7, 0.3]), link = :x, xscale = :linear)
 ```
 
-We can do all that plotting work in one go with the [`plotresult`](@ref) recipe:
+We can do all that plotting work with some of the builtin recipes:
 
 ```@example walk
-plotresult(
-    data,
-    [result, result2, result3],
-    ylims = (0.001, 2.0), 
-    xscale = :log10, 
-    yscale = :log10,
-    legend = :bottomleft,
-)
+function plot_result(data, results...)
+    p1 = plot(data, 
+        ylims = (0.001, 2.0), 
+        xscale = :log10, 
+        yscale = :log10,
+        legend = :bottomleft,
+    )
+    p2 = plot(xscale = :log10)
+    for r in results
+        plot!(p1, r)
+        residualplot!(p2, r)
+    end
+    plot(p1, p2, link = :x, layout = @layout [top{0.75h} ; bottom{0.25h}])
+end
+
+plot_result(data, result, result2, result3)
 ```
 
 Let's modify the black body model with a continuum component
@@ -271,8 +283,8 @@ bbpl_model = model2.m1 * (PowerLaw() + model2.a1) |> deepcopy
 We'll freeze the hydrogen column density parameter to the galactic value and refit:
 
 ```@example walk
-bbpl_model.ηH_1.value = 4
-bbpl_model.ηH_1.frozen = true
+bbpl_model.m1.ηH.value = 4
+bbpl_model.m1.ηH.frozen = true
 bbpl_model
 ```
 
@@ -288,13 +300,7 @@ bbpl_result = fit(
 Let's plot the result:
 
 ```@example walk
-plot(data, 
-    ylims = (0.001, 2.0), 
-    xscale = :log10, 
-    yscale = :log10,
-    legend = :bottomleft,
-)
-plot!(bbpl_result)
+plot_result(data, bbpl_result)
 ```
 
 Update the model and fix the black body temperature to 2 keV:
@@ -302,8 +308,8 @@ Update the model and fix the black body temperature to 2 keV:
 ```@example walk
 update_model!(bbpl_model, bbpl_result)
 
-bbpl_model.T_1.value = 2.0
-bbpl_model.T_1.frozen = true
+bbpl_model.a2.T.value = 2.0
+bbpl_model.a2.T.frozen = true
 bbpl_model
 ```
 
@@ -342,13 +348,12 @@ model
 This gave a pretty good fit but the errors on our paramters are not well defined, being estimated only from a convariance matrix in the least-squares solver. MCMC can give us better confidence regions, and even help us uncover dependencies between paramters. Here we'll take all of our parameters and convert them into a Turing.jl model with use of their macro:
 
 ```@example walk
-@model function mcmc_model(domain, objective, variance, f)
+@model function mcmc_model(objective, stddev, f)
     K ~ Normal(20.0, 1.0)
     a ~ Normal(2.2, 0.3)
     ηH ~ truncated(Normal(0.5, 0.1); lower = 0)
-
-    pred = f(domain, [K, a, ηH])
-    return objective ~ MvNormal(pred, sqrt.(variance))
+    pred = f(K, a, ηH)
+    return objective ~ MvNormal(pred, stddev)
 end
 ```
 
@@ -358,12 +363,11 @@ At the moment we haven't explicitly used our model, but `f` in this case takes t
 
 ```@example walk
 config = FittingConfig(FittingProblem(model => data))
+
 mm = mcmc_model(
-    make_model_domain(ContiguouslyBinned(), data),
-    make_objective(ContiguouslyBinned(), data),
-    make_objective_variance(ContiguouslyBinned(), data),
-    # _f_objective returns a function used to evaluate and fold the model through the data
-    SpectralFitting._f_objective(config),
+    get_objective_single(config),
+    sqrt.(get_objective_variance_single(config)),
+    get_invoke_wrapper_single(config),
 )
 nothing # hide
 ```
@@ -380,4 +384,16 @@ In the printout we see summary statistics about or model, in this case that it h
 plot(chain)
 ```
 
-Corner plots are currently broken at time of writing.
+Using PairPlots.jl to create corner plots:
+
+```@example walk
+import PairPlots, Makie, CairoMakie
+
+table = (; # named tuple syntax
+    K = vec(chain["K"]),
+    a = vec(chain["a"]),
+    ηH = vec(chain["ηH"])
+)
+
+PairPlots.pairplot(table)
+```

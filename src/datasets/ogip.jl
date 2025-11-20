@@ -116,6 +116,9 @@ function _adapt_matrix_type(T::Type, mat::M) where {M}
         map(row -> convert.(T, row), mat)
     elseif M <: AbstractMatrix
         map(row -> convert.(T, row), eachcol(mat))
+    else
+        # handle simple vector format where each energy bin maps to a single value (e.g., for responses produced using ftflx2xsp)
+        map(val -> [convert(T, val)], mat)
     end
 end
 

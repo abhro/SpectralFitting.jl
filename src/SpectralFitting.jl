@@ -34,17 +34,15 @@ using MultiLinearInterpolations
 
 abstract type AbstractInstrument end
 
-abstract type AbstractStatistic end
-struct ChiSquared <: AbstractStatistic end
-struct Cash <: AbstractStatistic end
-
 # unitful units
 include("units.jl")
 SpectralUnits.@reexport using .SpectralUnits
 
+
 include("utils.jl")
 include("print-utilities.jl")
 include("support.jl")
+include("statistics.jl")
 
 include("fitparam.jl")
 include("param-cache.jl")
@@ -52,13 +50,9 @@ include("abstract-models.jl")
 
 include("composite-models.jl")
 
-include("reflection.jl")
-
 include("meta-models/wrappers.jl")
 include("meta-models/table-models.jl")
 include("meta-models/surrogate-models.jl")
-include("meta-models/caching.jl")
-include("meta-models/functions.jl")
 
 include("datasets/ogip.jl")
 include("datasets/datasets.jl")
@@ -71,11 +65,8 @@ include("model-data-io.jl")
 
 # include fitting api
 include("fitting/problem.jl")
-include("fitting/cache.jl")
 include("fitting/config.jl")
 include("fitting/result.jl")
-include("fitting/statistics.jl")
-include("fitting/binding.jl")
 include("fitting/methods.jl")
 
 include("simulate.jl")
@@ -86,6 +77,11 @@ include("julia-models/model-utilities.jl")
 include("julia-models/additive.jl")
 include("julia-models/multiplicative.jl")
 include("julia-models/convolutional.jl")
+
+# wrapper models
+include("meta-models/caching.jl")
+include("meta-models/functions.jl")
+include("meta-models/parameter-patch.jl")
 
 include("plots-recipes.jl")
 

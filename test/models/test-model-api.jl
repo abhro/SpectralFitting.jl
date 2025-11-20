@@ -17,10 +17,14 @@ output = invokemodel(domain, model)
 
 invokemodel!(output, domain, model)
 allocated = @allocated invokemodel!(output, domain, model)
+@test allocated <= 209
+
+params = get_value.(SpectralFitting.parameter_vector(model))
+invokemodel!(output, domain, model, params)
+allocated = @allocated invokemodel!(output, domain, model, params)
 @test allocated <= 48
 
 @test modelkind(model) == Additive()
-@test numbertype(model) == Float64
 
 # composite
 
@@ -31,11 +35,35 @@ output = @inferred allocate_model_output(model, domain)
 invokemodel!(output, domain, model)
 @test all(i -> isapprox(i, 12.0), output[:, 1])
 
-allocated = @allocated invokemodel!(output, domain, model)
+invokemodel!(output, domain, model)
+
+params = get_value.(SpectralFitting.parameter_vector(model))
+invokemodel!(output, domain, model, params)
+allocated = @allocated invokemodel!(output, domain, model, params)
 @test allocated <= 48
 
 output = invokemodel(domain, model)
 @test all(i -> isapprox(i, 12.0), output)
 
 @test modelkind(model) == Additive()
-@test numbertype(model) == Float64
+
+# parameter things
+
+@test SpectralFitting.parameter_count(PhotoelectricAbsorption()) == 1
+@test SpectralFitting.parameter_count(PowerLaw()) == 2
+@test SpectralFitting.parameter_count(PowerLaw() + PowerLaw()) == 4
+
+model = DummyMultiplicative() * PowerLaw(a = FitParam(4.0, frozen = true))
+cache = @inferred SpectralFitting.make_parameter_cache(model)
+SpectralFitting.update_free_parameters!(cache, [2.0, 0.5])
+@test cache.parameters == [2.0, 5.0, 0.5, 4.0]
+
+outputs = allocate_model_output(model, domain)
+output = invokemodel!(outputs, domain, model, cache)
+@test sum(output) ≈ 1666.665 atol=1e-4
+
+model = DummyAdditive()
+
+params_tuple = @inferred SpectralFitting._unpack_as_tuple(model)
+expected = (FitParam(1.0), FitParam(1.0), FitParam(5.0))
+@test isapprox.(params_tuple, expected) |> all

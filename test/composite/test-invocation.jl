@@ -23,8 +23,7 @@ out_flux = invokemodel!(flux, energy, model2)
 @test all(out_flux .== 12)
 
 # just check that it has no errors
-checker_all(model) =
-    SpectralFitting.Reflection.assemble_composite_model_call(typeof(model), Vector{Float64})
+checker_all(model) = invokemodel(energy, model)
 _ = checker_all(model + model)
 
 # some other special cases
@@ -78,7 +77,7 @@ flux = invokemodel(energy, cm)
 @test all(flux .== 160.0)
 
 # inplace variant
-fluxes = zeros(Float64, (length(energy) - 1, 2))
+fluxes = allocate_model_output(cm, energy)
 flux = view(fluxes, :, 1)
 invokemodel!(fluxes, energy, cm)
 @test all(flux .== 160.0)

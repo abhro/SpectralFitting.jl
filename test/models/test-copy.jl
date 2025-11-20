@@ -21,7 +21,7 @@ m.a.value = 2.0
 # composite model
 model = PowerLaw() + PowerLaw()
 model2 = copy(model)
-model.K_1.value = 2.0
-@test model2.K_2.value == 1.0
+model.a1.K.value = 2.0
+@test model2.a1.K.value == 1.0
 
 @inferred copy(model)

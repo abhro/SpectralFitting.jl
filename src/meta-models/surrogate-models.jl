@@ -42,30 +42,15 @@ function SurrogateSpectralModel(
     SurrogateSpectralModel{T,K,N,S,symbols}(surrogate, params)
 end
 
+parameter_count(::SurrogateSpectralModel{T,K,N}) where {T,K,N} = N
+parameter_names(::SurrogateSpectralModel{T,K,N,S,Symbols}) where {T,K,N,S,Symbols} = Symbols
+parameter_vector(model::SurrogateSpectralModel) = collect(model.params)
 
-# reflection tie-ins
-function Reflection.get_closure_symbols(::Type{<:SurrogateSpectralModel})
-    (:surrogate,)
-end
-function Reflection.get_parameter_symbols(M::Type{<:SurrogateSpectralModel})
-    last(M.parameters)
-end
-function Reflection.parameter_lenses(
-    ::Type{<:SurrogateSpectralModel},
-    info::Reflection.ModelInfo,
-)
-    map(eachindex(info.symbols)) do i
-        :(getfield($(info.lens), :params)[$i])
-    end
-end
-function Reflection.make_constructor(
-    M::Type{<:SurrogateSpectralModel},
-    closures::Vector,
-    params::Vector,
-    T::Type,
-)
-    _, K, N, S, Syms = M.parameters
-    :(SurrogateSpectralModel{$T,$K,$N,$S,$Syms}($(closures...), ($(params...),)))
+function remake_with_parameters(
+    model::SurrogateSpectralModel{<:FitParam{T},K,N,S,Symbols},
+    parameters::Tuple,
+) where {T,K,N,S,Symbols}
+    SurrogateSpectralModel{T,K,N,S,Symbols}(model.surrogate, parameters)
 end
 
 @fastmath function invoke!(output, domain, model::SurrogateSpectralModel{T}) where {T}
@@ -118,7 +103,7 @@ function optimize_accuracy!(
         if verbose
             println("$(rpad(epoch, 5)): ", ℳσ)
         end
-        update!(surr, X[i], y[i])
+        Surrogates.update!(surr, X[i], y[i])
     end
     surr
 end
@@ -216,13 +201,17 @@ function make_surrogate_harness(
 end
 
 function make_model(harness::SurrogateHarness)
-    params = parameter_named_tuple(harness.model)
-    SurrogateSpectralModel(
-        modelkind(harness.model),
-        harness.surrogate,
-        Tuple(params),
-        keys(params),
-    )
+    N = parameter_count(harness.model)
+    I = (1:N...,)
+    parameters = parameter_vector(harness.model)
+    params = map(I) do i
+        parameters[i]
+    end
+    symbols = parameter_names(harness.model)
+    syms = map(I) do i
+        symbols[i]
+    end
+    SurrogateSpectralModel(modelkind(harness.model), harness.surrogate, params, syms)
 end
 
 export SurrogateSpectralModel,

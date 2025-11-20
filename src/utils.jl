@@ -93,7 +93,7 @@ end
 """
     count_error(k, σ)
 
-Gives the error on `k` mean photon counts to a significance of `σ` standard deviations 
+Gives the error on `k` mean photon counts to a significance of `σ` standard deviations
 about the mean.
 
 Derived from likelihood of binomial distributions being the beta function.

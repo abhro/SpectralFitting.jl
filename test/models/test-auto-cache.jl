@@ -47,13 +47,20 @@ domain = collect(range(0.0, 10.0, 100))
 model = DummyMultiplicative() * AutoCache(EvalCountingModel())
 
 # running the model several times should only hit the counter once
-for i = 1:100
+for i = 1:10
     invokemodel(domain, model)
 end
 @test model.a1.model.table[1] == 1
 
 # changing the parameter should hit the counter again
-set_value!(model.a_1, 5.0)
+set_value!(model.a1.a, 5.0)
+for i = 1:100
+    invokemodel(domain, model)
+end
+@test model.a1.model.table[1] == 2
+
+# but not if it's normalisation
+set_value!(model.a1.K, 10.0)
 for i = 1:100
     invokemodel(domain, model)
 end

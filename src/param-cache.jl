@@ -7,6 +7,13 @@ struct ParameterCache{M<:AbstractArray,V,T<:Number}
     frozen_values::Vector{T}
 end
 
+function Base.show(io::IO, ::MIME"text/plain", @nospecialize(pc::ParameterCache))
+    println(io, "ParameterCache")
+    println(io, " . Free Mask     : ", pc.free_mask)
+    println(io, " . Parameters    : ", _get_parameters(pc, 0))
+    println(io, " . Frozen Values : ", pc.frozen_values)
+end
+
 function _make_free_mask(params::AbstractArray{<:FitParam})
     free_mask = BitVector(undef, length(params))
     for (i, p) in enumerate(params)
@@ -21,33 +28,32 @@ function ParameterCache(params::AbstractArray{<:FitParam})
     ParameterCache(free_mask, map(get_value, params), map(get_value, frozen))
 end
 
-function _update_conditional!(parameters, mask, new_parameters, frozen)
-    j::Int = 1
-    k::Int = 1
-    for (i, free) in enumerate(mask)
-        if free
-            parameters[i] = new_parameters[j]
-            j += 1
-        else
-            parameters[i] = frozen[k]
-            k += 1
-        end
-    end
-end
-
 _get_parameters(cache::ParameterCache, params) = cache.parameters
 _get_parameters(cache::ParameterCache{M,V}, params) where {M<:AbstractArray,V<:DiffCache} =
     get_tmp(cache.parameters, params)
 
 function update_free_parameters!(cache::ParameterCache, params)
-    @assert count(cache.free_mask) == length(params)
-    _update_conditional!(
-        _get_parameters(cache, params),
-        cache.free_mask,
-        params,
-        cache.frozen_values,
-    )
-    cache
+    @assert count(cache.free_mask) == length(params) "$(count(cache.free_mask)) != $(length(params))"
+
+    _params = _get_parameters(cache, zero(eltype(params)))
+    # copy over the frozen parameters as well
+    j::Int = 1
+    k::Int = 1
+    for (i, mask) in enumerate(cache.free_mask)
+        if !mask
+            _params[i] = cache.frozen_values[j]
+            j += 1
+        else
+            _params[i] = params[k]
+            k += 1
+        end
+    end
+
+    _params
+end
+
+function get_free_parameters(cache::ParameterCache)
+    _get_parameters(cache, 0)[cache.free_mask]
 end
 
 export ParameterCache, update_free_parameters!

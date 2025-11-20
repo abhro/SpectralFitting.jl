@@ -6,7 +6,7 @@
 end
 
 """
-    abstract type AbstractLayout end
+    abstract type AbstractDataLayout end
 
 The data layout primarily concerns the relationship between the objective and
 the domain. It is used to work out whether a model and a dataset are fittable,
@@ -20,10 +20,10 @@ The following methods may be used to interrogate support:
 The following method is also used to define the support of a model or dataset:
 - [`supports`](@ref)
 
-For cases where unit information needs to be propagated, an `AbstractLayout` can also be used to ensure the units are compatible. To query the units of a layout, use
+For cases where unit information needs to be propagated, an `AbstractDataLayout` can also be used to ensure the units are compatible. To query the units of a layout, use
 - [`support_units`](@ref)
 """
-abstract type AbstractLayout end
+abstract type AbstractDataLayout end
 
 """
     support_units(x)
@@ -32,18 +32,23 @@ Return the units of a particular layout. If this method returns `nothing`,
 assume the layout does not care about the units and handle that information
 appropriately (throw an error or set defaults).
 """
-support_units(::T) where {T<:AbstractLayout} = nothing
+support_units(::T) where {T<:AbstractDataLayout} = nothing
 
 """
-    with_units(::AbstractLayout, units)
+    with_units(::AbstractDataLayout, units)
 
-Remake the [`AbstractLayout`](@ref) with the desired units. This may be a no-op
+Remake the [`AbstractDataLayout`](@ref) with the desired units. This may be a no-op
 if the layout does not care about units, see [`support_units`](@ref).
 """
-with_units(layout::AbstractLayout, units) = layout
+with_units(layout::AbstractDataLayout, units) = layout
+
+default_layout(data) =
+    with_units(preferred_support(data), preferred_units(data, ChiSquared()))
+default_layout(model, data) =
+    with_units(preferred_support(model), preferred_units(data, ChiSquared()))
 
 """
-    struct OneToOne <: AbstractLayout end
+    struct OneToOne <: AbstractDataLayout end
 
 Indicates there is a one-to-one (injective) correspondence between each input
 value and each output value. That is to say
@@ -51,7 +56,7 @@ value and each output value. That is to say
 length(objective) == length(domain)
 ```
 """
-struct OneToOne{U} <: AbstractLayout
+struct OneToOne{U} <: AbstractDataLayout
     units::U
 end
 OneToOne() = OneToOne(nothing)
@@ -59,7 +64,7 @@ support_units(l::OneToOne) = l.units
 with_units(::OneToOne, units) = OneToOne(units)
 
 """
-    struct ContiguouslyBinned <: AbstractLayout end
+    struct ContiguouslyBinned <: AbstractDataLayout end
 
 Contiguously binned data layout means that the domain describes high and low
 bins, with the objective being the value in that bin. This means
@@ -72,7 +77,7 @@ Note that the _contiguous_ qualifer is to mean there is no gaps in the bins, and
 ```
 
 """
-struct ContiguouslyBinned{U} <: AbstractLayout
+struct ContiguouslyBinned{U} <: AbstractDataLayout
     units::U
 end
 ContiguouslyBinned() = ContiguouslyBinned(nothing)
@@ -84,7 +89,7 @@ const DEFAULT_SUPPORT_ORDERING = (ContiguouslyBinned(), OneToOne())
 """
     preferred_support(x)
 
-Get the preferred [`AbstractLayout`](@ref) of `x`. If multiple supports are available, 
+Get the preferred [`AbstractDataLayout`](@ref) of `x`. If multiple supports are available,
 the `DEFAULT_SUPPORT_ORDERING` is followed:
 
 ```
@@ -103,7 +108,7 @@ end
 """
     common_support(x, y)
 
-Find the common [`AbstractLayout`](@ref) of `x` and `y`, following the ordering of
+Find the common [`AbstractDataLayout`](@ref) of `x` and `y`, following the ordering of
 [`preferred_support`](@ref).
 """
 function common_support(x, y)
@@ -143,12 +148,12 @@ common_support(args::Vararg) = reduce(_support_reducer, args)
     supports(x::Type)
 
 Used to define whether a given type has support for a specific
-[`AbstractLayout`](@ref). Should return a tuple of the supported layouts. This
-method should be implemented to express new support, not the query method. 
+[`AbstractDataLayout`](@ref). Should return a tuple of the supported layouts. This
+method should be implemented to express new support, not the query method.
 
 To query, there is
 
-    supports(layout::AbstractLayout, x)::Bool
+    supports(layout::AbstractDataLayout, x)::Bool
 
 # Example
 
@@ -157,9 +162,9 @@ supports(::Type{typeof(x)}) = (OneToOne(),)
 @assert supports(ContiguouslyBinned(), x) == false
 ```
 """
-supports(layout::AbstractLayout, x)::Bool = layout in supports(x)
+supports(layout::AbstractDataLayout, x)::Bool = layout in supports(x)
 supports(::T) where {T} = supports(T)
 supports(::Type) = ()
 
-export AbstractLayout,
+export AbstractDataLayout,
     common_support, ContiguouslyBinned, OneToOne, preferred_support, supports, support_units

@@ -24,4 +24,18 @@ register_model_data(PhotoelectricAbsorption, "cross_sections_phabs_angr.jld")
     end
 end
 
-export PhotoelectricAbsorption
+"""
+    Constant
+
+$(FIELDS)
+"""
+struct Constant{T} <: AbstractSpectralModel{T,Multiplicative}
+    "Constant value."
+    value::T
+end
+Constant(; value=FitParam(1.0; frozen = true)) = Constant(value)
+@fastmath function invoke!(flux, energy, model::Constant)
+    flux .= model.value
+end
+
+export PhotoelectricAbsorption, Constant

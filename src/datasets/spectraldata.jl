@@ -185,12 +185,12 @@ function _objective_to_units(dataset::SpectralData, obj, units)
     adj[dataset.data_mask]
 end
 
-function make_objective(layout::AbstractLayout, dataset::SpectralData)
+function make_objective(layout::AbstractDataLayout, dataset::SpectralData)
     obj = make_objective(layout, dataset.spectrum)
     _objective_to_units(dataset, obj, support_units(layout))
 end
 
-function make_objective_variance(layout::AbstractLayout, dataset::SpectralData)
+function make_objective_variance(layout::AbstractDataLayout, dataset::SpectralData)
     var = make_objective_variance(layout, dataset.spectrum)
     _objective_to_units(dataset, var, support_units(layout))
 end
@@ -215,7 +215,7 @@ function restrict_domain!(dataset::SpectralData, condition)
     dataset
 end
 
-function _fold_transformer(T::Type, exposure_time, layout::AbstractLayout, R, ΔE, E)
+function _fold_transformer(T::Type, exposure_time, layout::AbstractDataLayout, R, ΔE, E)
     cache = DiffCache(construct_objective_cache(layout, T, length(E), 1))
     units = support_units(layout)
     function _transformer!!(energy, flux)
@@ -245,17 +245,16 @@ function objective_transformer(
     layout::ContiguouslyBinned,
     dataset::SpectralData{T},
 ) where {T}
-    R_folded = if has_ancillary(dataset)
-        sparse(fold_ancillary(dataset.response, dataset.ancillary))
-    else
-        dataset.response.matrix
-    end
+    R_folded = response_matrix(dataset)
     R = R_folded[dataset.data_mask, :]
     ΔE = bin_widths(dataset)
     model_domain = response_energy(dataset.response)
     _fold_transformer(T, dataset.spectrum.exposure_time, layout, R, ΔE, model_domain)
 end
 
+response_matrix(dataset::SpectralData) =
+    has_ancillary(dataset) ? sparse(fold_ancillary(dataset.response, dataset.ancillary)) :
+    dataset.response.matrix
 
 unmasked_bin_widths(dataset::SpectralData) = dataset.energy_high .- dataset.energy_low
 bin_widths(dataset::SpectralData) = unmasked_bin_widths(dataset)[dataset.data_mask]
@@ -285,7 +284,7 @@ function drop_channels!(dataset::SpectralData, indices)
 end
 
 spectrum_energy(dataset::SpectralData) =
-    ((dataset.energy_low.+dataset.energy_high)./2)[dataset.data_mask]
+    ((dataset.energy_low .+ dataset.energy_high) ./ 2)[dataset.data_mask]
 
 function regroup!(dataset::SpectralData, grouping; safety_copy = false)
     grp::typeof(grouping) = if safety_copy
@@ -394,12 +393,41 @@ function set_units!(s::SpectralData, units)
     s
 end
 
+"""
+    unfold(data::SpectralData)
+
+Unfold the dataset using the response and ancillary, as in e.g. ISIS.
+
+Returns a new [`Spectrum`](@abs) that has had the domain masking applied.
+"""
+function unfold(data::SpectralData)
+    unfolded, variance = if has_ancillary(data)
+        _unf = unfold(data.response, data.ancillary, data.spectrum.data)
+        _var =
+            !isnothing(data.spectrum.errors) ?
+            unfold(data.response, data.ancillary, data.spectrum.errors) : nothing
+        _unf, _var
+    else
+        _unf = unfold(data.response, data.spectrum.data)
+        _var =
+            !isnothing(data.spectrum.errors) ?
+            unfold(data.response, data.spectrum.errors) : nothing
+        _unf, _var
+    end
+
+    unf = remake_spectrum(data.spectrum; data = unfolded, errors = variance)
+    unf.units = unf.units / u"cm^2"
+    mask!(unf, data.data_mask)
+    unf
+end
+
 # internal methods
 
 function rebin_if_different_domains!(output, data_domain, model_domain, input)
     if length(data_domain) == length(model_domain)
         @. output = input
     else
+        @warn "Model and data domains differ"
         interpolated_rebin!(output, data_domain, input, model_domain)
     end
     output
@@ -607,4 +635,5 @@ export SpectralData,
     set_units!,
     background_dataset,
     rescale!,
-    rescale_background!
+    rescale_background!,
+    unfold

@@ -45,7 +45,7 @@ end
 
 function fit(prob::FittingProblem, args...; kwargs...)
     method_kwargs, config = _unpack_config(prob; kwargs...)
-    @inline fit(config, args...; method_kwargs...)
+    fit(config, args...; method_kwargs...)
 end
 
 function fit(
@@ -58,12 +58,20 @@ function fit(
 )
     @assert fit_statistic(config) == ChiSquared() "Least squares only for χ2 statistics."
 
+    total_objective = reduce(vcat, c.objective for c in config.data_cache)
+    total_domain = reduce(vcat, c.model_domain for c in config.data_cache)
+    total_cov = reduce(vcat, c.covariance for c in config.data_cache)
+
+    function _invoke_wrapper(_, u)
+        vcat(calculate_objective!(config, u)...)
+    end
+
     lsq_result = _lsq_fit(
-        _f_objective(config),
-        config.model_domain,
-        config.objective,
-        config.covariance,
-        config.parameters,
+        _invoke_wrapper,
+        total_domain,
+        total_objective,
+        total_cov,
+        config.u0,
         alg;
         verbose = verbose,
         max_iter = max_iter,
@@ -78,9 +86,7 @@ function fit(
         nothing
     end
 
-    y = _f_objective(config)(config.model_domain, params)
-    chi2 = measure(fit_statistic(config), config.objective, y, config.variance)
-    finalize(config, params, chi2; σparams = σ)
+    finalize_result(config, params, lsq_result; σparams = σ)
 end
 
 function fit(
@@ -90,31 +96,41 @@ function fit(
     autodiff = _determine_ad_backend(config),
     method_kwargs...,
 )
-    objective = _f_wrap_objective(fit_statistic(config), config)
-    u0 = get_value.(config.parameters)
+    if verbose == true
+        @warn "Verbose not yet supported for these fitting algorithms."
+    end
+
+    function _stat_objective(params, _)
+        out = calculate_objective!(config, params)
+        m = sum(1:model_count(config.prob)) do i
+            dc = config.data_cache[i]
+            measure(fit_statistic(config), out[i], dc.objective, dc.variance)
+        end
+        m
+    end
 
     if !(autodiff isa Optimization.SciMLBase.NoAD) && (!supports_autodiff(config))
         error("Model does not support automatic differentiation.")
     end
 
-    lb, ub = _determine_bounds(config, autodiff)
+    u0 = get_value.(config.u0)
+    # lb, ub = _determine_bounds(config, autodiff)
 
-    # build problem and solve
-    opt_f = Optimization.OptimizationFunction(objective, autodiff)
-    opt_prob =
-        Optimization.OptimizationProblem(opt_f, u0, config.model_domain; lb = lb, ub = ub)
+    # # build problem and solve
+    # # TODO: iip == false fails to solve, but this works fine?
+    opt_f = Optimization.OptimizationFunction{true}(_stat_objective, autodiff)
+    opt_prob = Optimization.OptimizationProblem{true}(opt_f, u0, nothing)
 
     sol = Optimization.solve(opt_prob, optim_alg; method_kwargs...)
 
-    # TODO: temporary fix for type instabilities in Optimizations.jl
-    new_pars::paramtype(config) = sol.u
-    final_stat = objective(new_pars, config.model_domain)
-    finalize(config, new_pars, final_stat)
+    # # TODO: temporary fix for type instabilities in Optimizations.jl
+    finalize_result(config, sol.u, sol)
 end
 
 function fit!(prob::FittingProblem, args...; kwargs...)
     result = fit(prob, args...; kwargs...)
-    update_model!(prob.model, result)
+    @assert length(result.config.parameter_bindings) == 1 "Can only update model when there is a single result slice"
+    update_model!(only(prob.model.m), result[1])
     result
 end
 
@@ -122,7 +138,7 @@ function _determine_bounds(config, ::A) where {A}
     if A <: Optimization.SciMLBase.NoAD
         nothing, nothing
     else
-        get_lowerlimit.(config.parameters), get_upperlimit.(config.parameters)
+        get_lowerlimit.(config.u0), get_upperlimit.(config.u0)
     end
 end
 

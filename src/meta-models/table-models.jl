@@ -9,13 +9,6 @@ First field in the struct **must be** `table`. See
 """
 abstract type AbstractTableModel{T,K} <: AbstractSpectralModel{T,K} end
 
-# reflection tie-ins
-Reflection.get_closure_symbols(::Type{<:AbstractTableModel}) = (:table,)
-
-# `table` field is not a model parameter
-Reflection.get_parameter_symbols(model::Type{<:AbstractTableModel}) =
-    fieldnames(model)[2:end]
-
 """
     Base.copy(m::AbstractTableModel)
 
@@ -31,13 +24,6 @@ function Base.copy(m::AbstractTableModel)
 end
 
 abstract type AbstractCachedModel{T,K} <: AbstractSpectralModel{T,K} end
-
-# reflection tie-ins
-function Reflection.get_closure_symbols(::Type{<:AbstractCachedModel})
-    (:cache,)
-end
-Reflection.get_parameter_symbols(model::Type{<:AbstractCachedModel}) =
-    fieldnames(model)[2:end]
 
 # some utilities for interacting with XSPEC-compatible table models
 
@@ -140,7 +126,7 @@ function TableModelData(::Val{N}, path::String; T::Type = Float64) where {N}
     energy_bins::Vector{T} = convert.(T, read(f[3], "ENERG_LO"))
     @assert issorted(energy_bins) "Energy bins are not in a linear order"
     _energy_high = convert.(T, read(f[3], "ENERG_HI"))
-    @views @assert all(isapprox.(_energy_high[1:end-1], energy_bins[2:end])) "Energy bins are not contiguously binned (i.e. `e_low[i + 1] != e_high[i]`)."
+    @views @assert all(isapprox.(_energy_high[1:(end-1)], energy_bins[2:end])) "Energy bins are not contiguously binned (i.e. `e_low[i + 1] != e_high[i]`)."
     push!(energy_bins, last(_energy_high))
 
     # currently assuming the actual underlying parameter grid is

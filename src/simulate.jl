@@ -51,30 +51,35 @@ function simulate!(
     exposure_time = 1e5,
     counting_variance = true,
 )
-    config.objective .= _invoke_and_transform!(config.cache, config.model_domain, p)
-    for (i, m) in enumerate(config.objective)
+    @assert model_count(config.prob) == 1 "Cannot simulate multiple models simultaneously."
+    objective = only(calculate_objective!(config, p))
+    data_cache = only(config.data_cache)
+    for (i, m) in enumerate(objective)
         distr = simulate_distribution(m * exposure_time)
         count = rand(rng, distr)
-        config.objective[i] = count / exposure_time
+        data_cache.objective[i] = count / exposure_time
 
         # how to propagate the variance
         if counting_variance
-            config.variance[i] = count / exposure_time^2
+            data_cache.variance[i] = count / exposure_time^2
+            data_cache.covariance[i] = inv(data_cache.variance[i])
         end
     end
+    config
 end
 
 function simulate!(conf::FittingConfig; seed = abs(rand(Int)), kwargs...)
     rng = Random.default_rng(seed)
     Random.seed!(rng, seed)
-    simulate!(conf, get_value.(conf.parameters); rng = rng, kwargs...)
+    simulate!(conf, get_value.(conf.u0); rng = rng, kwargs...)
+    data_cache = only(conf.data_cache)
     SimulatedSpectrum(
-        conf.model_domain,
-        conf.output_domain,
-        conf.objective,
-        conf.variance,
+        data_cache.model_domain,
+        data_cache.objective_domain,
+        data_cache.objective,
+        data_cache.variance,
         u"counts / (s * keV)",
-        conf.cache.transformer!!,
+        only(conf.transformers),
         seed,
     )
 end
@@ -86,7 +91,6 @@ function _make_simulation_fitting_config(
     layout = ContiguouslyBinned(),
     input_domain = response_energy(response),
     output_domain = folded_energy(response),
-    stat = ChiSquared(),
     kwargs...,
 ) where {T}
     if !supports(layout, model)
@@ -104,27 +108,20 @@ function _make_simulation_fitting_config(
     objective = zeros(eltype(output_domain), length(output_domain) - 1)
     variance = ones(eltype(objective), size(objective))
 
-    cache = SpectralCache(
-        layout,
-        model,
-        input_domain,
-        objective,
-        _fold_transformer(T, one(eltype(ΔE)), layout, R, ΔE, input_domain),
-    )
-
-    free_params = collect(filter(isfree, parameter_tuple(model)))
-
-    conf = FittingConfig(
-        implementation(model),
-        cache,
-        stat,
-        nothing,
-        free_params,
+    # TODO: there should be a simpler wrapper for the dataset
+    data = SimulatedSpectrum(
         input_domain,
         output_domain,
         objective,
         variance,
+        u"counts / (s * keV)",
+        _fold_transformer(T, one(eltype(ΔE)), layout, R, ΔE, input_domain),
+        42,
     )
+
+    prob = FittingProblem(model => data)
+    conf = FittingConfig(prob)
+
     kwargs, conf
 end
 
@@ -174,4 +171,4 @@ function simulate(
 end
 
 
-export simulate
+export simulate, simulate!

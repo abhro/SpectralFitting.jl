@@ -17,7 +17,7 @@ function interpolated_rebin!(output, target, input, current)
         input[i] /= current[i+1] - current[i]
     end
 
-    # use DataInterpolations cus no allocation :D 
+    # use DataInterpolations cus no allocation :D
     interp = @views DataInterpolations.LinearInterpolation(input, current[1:(end-1)])
 
     function _interp_safe(x)
@@ -49,21 +49,21 @@ function construct_objective_cache(
     construct_objective_cache(preferred_support(model), T, model, domain)
 end
 function construct_objective_cache(
-    layout::AbstractLayout,
+    layout::AbstractDataLayout,
     model::AbstractSpectralModel,
     domain::AbstractVector{T},
 ) where {T}
     construct_objective_cache(layout, T, model, domain)
 end
 function construct_objective_cache(
-    layout::AbstractLayout,
+    layout::AbstractDataLayout,
     T::Type,
     model::AbstractSpectralModel,
     domain,
 )
     construct_objective_cache(layout, T, length(domain), objective_cache_count(model))
 end
-function construct_objective_cache(layout::AbstractLayout, T::Type, N::Int, size::Int)
+function construct_objective_cache(layout::AbstractDataLayout, T::Type, N::Int, size::Int)
     n = if layout isa OneToOne
         N
     elseif layout isa ContiguouslyBinned

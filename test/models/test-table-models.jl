@@ -3,14 +3,12 @@ using SpectralFitting
 
 include("../dummies.jl")
 
-
 # multiplicative
 
 model = DummyMultiplicativeTableModel()
 
-# ensure the symbols are being parsed correctly
-all_symbols = SpectralFitting.parameter_named_tuple(model)
-@test all_symbols == (; a = model.a, b = model.b)
+@test SpectralFitting.parameter_names(model) == (:a, :b)
+@test SpectralFitting.parameter_vector(model) == [model.a, model.b]
 
 # can we invoke the table models alright
 energy = collect(range(0.1, 100.0, 100))
@@ -25,9 +23,6 @@ out_flux = invokemodel(energy, cm)
 # additive
 
 model = DummyAdditiveTableModel()
-
-all_symbols = SpectralFitting.parameter_named_tuple(model)
-@test all_symbols == (; K = model.K, a = model.a, b = model.b)
 
 out_flux = invokemodel(energy, model)
 @test all(out_flux .== 3.0)

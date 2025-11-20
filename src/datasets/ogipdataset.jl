@@ -1,6 +1,6 @@
 struct OGIPData end
 
-struct OGIPMetadata{H}
+mutable struct OGIPMetadata{H}
     paths::SpectralDataPaths
     observation_id::String
     exposure_id::String

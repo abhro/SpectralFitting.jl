@@ -1,57 +1,70 @@
 """
     abstract type AbstractModelWrapper{M,T,K} <: AbstractSpectralModel{T,K} end
 
-First field of the struct must be `model`.
+Used to implement wrapper models that take existing models as their argument and
+modify their behaviour.
 """
 abstract type AbstractModelWrapper{M<:AbstractSpectralModel,T,K} <:
               AbstractSpectralModel{T,K} end
 
+function remake_with_parameters(m::AbstractModelWrapper, parameters::Tuple)
+    Base.typename(typeof(m)).wrapper(remake_with_parameters(backing_model(m), parameters))
+end
+
+is_composite(::Type{<:AbstractModelWrapper{M}}) where {M} = is_composite(M)
+
+function _inner_invokemodel!(output, domain, model::AbstractModelWrapper)
+    _inner_invokemodel!(output, domain, backing_model(model))
+end
+
+# tie in dispatches
+_all_parameters_with_symbols(model::AbstractModelWrapper) =
+    _all_parameters_with_symbols(backing_model(model))
+
+backing_model(model::AbstractModelWrapper) = getfield(model, :model)
+
+closure_and_parameter(model::AbstractModelWrapper) =
+    closure_and_parameter(backing_model(model))
+
+implementation(::Type{<:AbstractModelWrapper{M}}) where {M} = implementation(M)
+
+parameter_count(model::AbstractModelWrapper) = parameter_count(backing_model(model))
+
+parameter_names(::Type{<:AbstractModelWrapper{M}}) where {M} = parameter_names(M)
+
+parameter_vector(model::AbstractModelWrapper) = parameter_vector(backing_model(model))
+
+objective_cache_count(m::AbstractModelWrapper) = objective_cache_count(backing_model(m))
+
+Base.copy(m::AbstractModelWrapper) = Base.typename(typeof(m)).wrapper(backing_model(m))
+
+_wrapper_name(m::AbstractModelWrapper) = "$(Base.typename(typeof(m)).name)"
+_model_name(
+    m::AbstractModelWrapper,
+) = "$(_wrapper_name(m))[$(_model_name(backing_model(m)))]"
+
+_printinfo(io::IO, m::AbstractModelWrapper; kwargs...) =
+    _printinfo(io, backing_model(m); kwargs...)
+_printinfo(io::IO, m::AbstractModelWrapper{<:CompositeModel}; kwargs...) =
+    _printinfo(io, backing_model(m); name = _wrapper_name(m), kwargs...)
+
+remake_with_model(m::AbstractModelWrapper, model::AbstractSpectralModel) =
+    Base.typename(typeof(m)).wrapper(model)
+
 normalisation(model::AbstractModelWrapper{M,T,Additive}) where {M,T} =
-    normalisation(model.model)
+    normalisation(backing_model(model))
 
-function Reflection.get_closure_symbols(
-    M::Type{<:AbstractModelWrapper{Model}},
-) where {Model}
-    # we ignore the `model` field, since that will be given by the constructor
-    (fieldnames(M)[2:end]..., Reflection.get_closure_symbols(Model)...)
+function Base.propertynames(m::AbstractModelWrapper)
+    Base.propertynames(backing_model(m))
 end
 
-Reflection.get_parameter_symbols(::Type{<:AbstractModelWrapper{M}}) where {M} =
-    Reflection.get_parameter_symbols(M)
-
-function Reflection.closure_parameter_lenses(
-    M::Type{<:AbstractModelWrapper},
-    info::Reflection.ModelInfo,
-)
-    num_closures = fieldcount(M) - 1 # ignore the `model` field
-
-    my_closures = map(info.closure_symbols[1:num_closures]) do s
-        :(getfield($(info.lens), $(Meta.quot(s))))
-    end
-    model_closures = map(info.closure_symbols[(num_closures+1):end]) do s
-        :(getfield($(info.lens).model, $(Meta.quot(s))))
-    end
-    vcat(my_closures, model_closures)
-end
-
-function Reflection.parameter_lenses(
-    ::Type{<:AbstractModelWrapper},
-    info::Reflection.ModelInfo,
-)
-    map(info.symbols) do s
-        :(getfield($(info.lens).model, $(Meta.quot(s))))
+function Base.getproperty(m::AbstractModelWrapper{<:Any,<:FitParam}, symb::Symbol)
+    params = Base.propertynames(backing_model(m))
+    if symb in params
+        getproperty(backing_model(m), symb)
+    else
+        getfield(m, symb)
     end
 end
 
-function Reflection.make_constructor(
-    M::Type{<:AbstractModelWrapper{Model}},
-    closures::Vector,
-    params::Vector,
-    T::Type,
-) where {Model}
-    num_closures = fieldcount(M) - 1 # ignore the `model` field
-    my_closures = closures[1:num_closures]
-    model_constructor =
-        Reflection.make_constructor(Model, closures[(num_closures+1):end], params, T)
-    :($(Base.typename(M).name)($(model_constructor), $(my_closures...)))
-end
+export AbstractModelWrapper

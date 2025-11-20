@@ -22,7 +22,7 @@ y_noisy = y .+ (0.2 * randn(length(y)))
 scatter(x, y_noisy)
 ```
 
-To make this into a fittable dataset, we observe that our layout is injective (i.e. `length(x) == length(y)`). This is subtly different from how the majority of spectral models are implemented, which usually assume some kind of binning (`length(x) == length(y) + 1`). Fortunately, SpectralFitting.jl can track this for us, and do various conversion to make the models work correctly for the data. We need only tell the package what our [`AbstractLayout`](@ref) is:
+To make this into a fittable dataset, we observe that our layout is injective (i.e. `length(x) == length(y)`). This is subtly different from how the majority of spectral models are implemented, which usually assume some kind of binning (`length(x) == length(y) + 1`). Fortunately, SpectralFitting.jl can track this for us, and do various conversion to make the models work correctly for the data. We need only tell the package what our [`AbstractDataLayout`](@ref) is:
 
 ```@example sherpa
 data = InjectiveData(x, y_noisy; name = "example")
@@ -88,13 +88,10 @@ levels = [2.3, 4.61, 9.21]
 contour(
     amps, 
     devs, 
-    stats .- result.χ2, 
+    stats .- sum(result.stats), 
     levels = levels, 
     xlabel = "K", 
     ylabel = "σ"
 )
 scatter!([result.u[1]], [result.u[3]])
 ```
-
-## Simultaneous fits
-

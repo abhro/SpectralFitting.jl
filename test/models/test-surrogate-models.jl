@@ -6,7 +6,7 @@ lower_bounds = (1e-3,)
 upper_bounds = (3.0,)
 
 energy = collect(range(0.1, 20.0, 100))
-model = XS_PhotoelectricAbsorption()
+model = PhotoelectricAbsorption()
 
 flux = similar(energy)[1:(end-1)]
 

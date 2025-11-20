@@ -1,5 +1,5 @@
-using SpectralFitting
 using Test
+using SpectralFitting
 
 include("../dummies.jl")
 
@@ -11,6 +11,9 @@ base_model = GaussianLine(; μ = FitParam(1.0), σ = FitParam(0.3))
 conv = AsConvolution(base_model)
 
 model = conv(lines)
+
+@test length(SpectralFitting.parameter_vector(model)) == 6
+@test SpectralFitting.parameter_names(model) == (:μ, :σ, :K, :E, :K, :E)
 
 domain = collect(range(0.0, 10.0, 150))
 
@@ -24,21 +27,34 @@ output = invokemodel(domain, model)
 dummy_data = make_dummy_dataset((E) -> (E^(-3.0)); units = u"counts / (s * keV)")
 sim = simulate(model, dummy_data; seed = 42)
 
-model.μ_1.frozen = true
-model.K_1.frozen = true
-model.K_2.frozen = true
-model.E_1.frozen = true
-model.E_2.frozen = true
+prob = FittingProblem(model => dummy_data)
+
+ps, _, bs = SpectralFitting.parameter_vector_symbols_and_bindings(prob)
+@test length(ps) == 6
+
+conf = FittingConfig(prob)
+output = @inferred SpectralFitting.calculate_objective!(conf, get_value.(conf.u0))
+
+model.c1.μ.frozen = true
+model.a1.K.frozen = true
+model.a2.K.frozen = true
+model.a1.E.frozen = true
+model.a2.E.frozen = true
 
 # change the width
-model.σ_1.value = 0.1
+model.c1.σ.value = 0.1
 model
 
-begin
-    prob = FittingProblem(model => sim)
-    result = fit(prob, LevenbergMarquadt())
-end
-@test result.χ2 ≈ 76.71272868245076 atol = 1e-3
+prob = FittingProblem(model => sim)
+conf = FittingConfig(prob)
+
+@test length(prob.lookup) == 6
+
+@inferred SpectralFitting.calculate_objective!(conf, [2.0])
+
+result = fit(prob, LevenbergMarquadt(), verbose = true)
+
+@test sum(result.stats) ≈ 76.71272868245076 atol = 1e-3
 @test result.u[1] ≈ 0.3 atol = 1e-2
 
 # put a couple of delta emission lines together
@@ -50,22 +66,20 @@ model = conv(lines)
 sim = simulate(model, dummy_data; seed = 42)
 
 # now see if we can fit the delta line
-model.μ_1.frozen = true
-model.K_1.frozen = true
-model.K_2.frozen = true
-model.E_1.frozen = true
-model.E_2.frozen = true
-model.σ_1.frozen = true
+model.c1.μ.frozen = true
+model.a1.K.frozen = true
+model.a2.K.frozen = true
+model.a1.E.frozen = true
+model.a2.E.frozen = true
+model.c1.σ.frozen = true
 
-model.E_2.frozen = false
-model.E_2.value = 2.0
-model.K_2.frozen = true
-# model.K_2.value = 2.0
+model.a1.E.frozen = false
+model.a1.E.value = 2.0
 
 model
 begin
     prob = FittingProblem(model => sim)
     result = fit(prob, LevenbergMarquadt(); verbose = true)
 end
-@test result.χ2 ≈ 76.66970981760741 atol = 1e-3
+@test sum(result.stats) ≈ 76.66970981760741 atol = 1e-3
 @test result.u[1] ≈ 3.0 atol = 1e-2

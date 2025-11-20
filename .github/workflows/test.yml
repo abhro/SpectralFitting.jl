@@ -5,14 +5,14 @@ on:
     branches:
       - main
     paths:
-      - 'src/**.jl'
-      - 'test/**.jl'
+      - '**.jl'
+      - '**.toml'
   push:
     branches:
       - main
     paths:
-      - 'src/**.jl'
-      - 'test/**.jl'
+      - '**.jl'
+      - '**.toml'
 
 concurrency:
   # cancels when a PR gets updated
@@ -20,28 +20,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-
-  smoke-test:
+  spectralfitting:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }}
     timeout-minutes: 30
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        julia-version: ['1.11']
-        os: [ubuntu-latest]
+        julia-version: ['1']
+        os: [ubuntu-latest, macos-latest]
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+
+      - uses: actions/checkout@v5
         with:
           repository: fjebaker/spectral-fitting-test-suite
           path: data
+
       - uses: julia-actions/setup-julia@v2
         with:
           version: ${{ matrix.julia-version }}
-      - run: |
-          ls -la
-          ls -la data
+
       - uses: actions/cache@v4
         env:
           cache-name: cache-artifacts
@@ -52,19 +51,84 @@ jobs:
             ${{ runner.os }}-test-${{ env.cache-name }}-
             ${{ runner.os }}-test-
             ${{ runner.os }}-
-      - run: julia -e 'import Pkg; Pkg.Registry.add(Pkg.RegistrySpec(url="https://github.com/astro-group-bristol/AstroRegistry/"))'
+
+      - name: Add AstroRegistry
+        shell: julia --project=. --color=yes {0}
+        run: |
+          import Pkg
+          Pkg.Registry.add(Pkg.RegistrySpec(url="https://github.com/JuliaRegistries/General"))
+          Pkg.Registry.add(Pkg.RegistrySpec(url="https://github.com/astro-group-bristol/AstroRegistry/"))
+
       - uses: julia-actions/julia-buildpkg@v1
-      - run: cat Manifest.toml
-      - run: |
-          julia --color=yes --math-mode=ieee --check-bounds=yes -tauto --project=. -e '
-            import Pkg
-            Pkg.test(; coverage=true, force_latest_compatible_version=true)
-          '
+
+      - name: Run SpectralFitting test
+        shell: julia --color=yes --math-mode=ieee --check-bounds=yes -tauto --project=. {0}
+        run: |
+          import Pkg
+          Pkg.test(; coverage=true)
         env:
           SF_TEST_SUITE_DATA: "../data/sample-data"
+
       - uses: julia-actions/julia-processcoverage@v1
         with:
           directories: src
-      - uses: codecov/codecov-action@v2
+      - uses: codecov/codecov-action@v5
         with:
           files: lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  xspecmodels:
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }}
+    timeout-minutes: 30
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        julia-version: ['1']
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/checkout@v5
+        with:
+          repository: fjebaker/spectral-fitting-test-suite
+          path: data
+
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: ${{ matrix.julia-version }}
+
+      - uses: actions/cache@v4
+        env:
+          cache-name: cache-artifacts
+        with:
+          path: ~/.julia/artifacts
+          key: ${{ runner.os }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-test-${{ env.cache-name }}-
+            ${{ runner.os }}-test-
+            ${{ runner.os }}-
+
+      - name: Add AstroRegistry
+        shell: julia --project=lib/XSPECModels/test --color=yes {0}
+        run: |
+          using Pkg
+          Pkg.Registry.add(Pkg.RegistrySpec(url="https://github.com/JuliaRegistries/General"))
+          Pkg.Registry.add(Pkg.RegistrySpec(url="https://github.com/astro-group-bristol/AstroRegistry/"))
+          pkg"dev . ./lib/XSPECModels"
+
+      - name: Run XSPECModels test
+        shell: julia --color=yes --math-mode=ieee --check-bounds=yes -tauto --project=lib/XSPECModels/test {0}
+        run: |
+          import Pkg
+          Pkg.test("XSPECModels"; coverage=true)
+        env:
+          SF_TEST_SUITE_DATA: "../../../data/sample-data"
+
+      - uses: julia-actions/julia-processcoverage@v1
+        with:
+          directories: src
+      - uses: codecov/codecov-action@v5
+        with:
+          files: lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}

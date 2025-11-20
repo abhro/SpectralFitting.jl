@@ -73,11 +73,11 @@ make_objective(::ContiguouslyBinned, dataset::BinnedData) = dataset.codomain
 make_model_domain(::OneToOne, dataset::BinnedData) = dataset.domain[1:(end-1)]
 make_objective(::OneToOne, dataset::BinnedData) = dataset.codomain
 
-make_output_domain(layout::AbstractLayout, dataset::BinnedData) =
+make_output_domain(layout::AbstractDataLayout, dataset::BinnedData) =
     make_model_domain(layout, dataset)
 
 function make_objective_variance(
-    ::AbstractLayout,
+    ::AbstractDataLayout,
     dataset::BinnedData{Tag,V},
 )::V where {Tag,V}
     if !isnothing(dataset.codomain_variance)
@@ -88,7 +88,7 @@ function make_objective_variance(
     end
 end
 
-function objective_transformer(::AbstractLayout, dataset::BinnedData)
+function objective_transformer(::AbstractDataLayout, dataset::BinnedData)
     function _transformer!!(domain, objective)
         @views objective
     end

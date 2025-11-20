@@ -1,7 +1,7 @@
 name = "XSPECModels"
 uuid = "e051c099-9e89-4e1f-aad2-39a4611ecf4d"
 authors = ["fjebaker <fergusbkr@gmail.com>"]
-version = "0.1.2"
+version = "0.2.4"
 
 [deps]
 DocStringExtensions = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
@@ -9,6 +9,6 @@ LibXSPEC_jll = "50917eeb-3e3c-5f3a-99bd-93e1c30e1561"
 SpectralFitting = "f2c56810-742e-4b72-8bf4-27af3bb81a12"
 
 [compat]
-DocStringExtensions = "0.9.3"
-LibXSPEC_jll = "0.1.15"
-SpectralFitting = "0.6"
+DocStringExtensions = "0.9"
+LibXSPEC_jll = "6"
+SpectralFitting = "0.7"

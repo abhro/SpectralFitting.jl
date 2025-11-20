@@ -36,7 +36,7 @@ make_output_domain
 ## Underlying data layouts
 
 ```@docs
-AbstractLayout
+AbstractDataLayout
 OneToOne
 ContiguouslyBinned
 common_support

@@ -30,13 +30,6 @@ PhotoelectricAbsorption
 Log10Flux
 ```
 
-## Wrappers
-
-```@docs
-AutoCache
-AsConvolution
-```
-
 ## Utility
 
 ```@docs
@@ -55,10 +48,10 @@ using SpectralFitting, UnicodePlots
 function plotmodel(energy, model)
     flux = invokemodel(energy, model)
     lineplot(
-        energy[1:end-1], 
-        flux, 
-        title=String(Base.typename(typeof(model)).name), 
-        xlabel="E (keV)", 
+        energy[1:end-1],
+        flux,
+        title=String(Base.typename(typeof(model)).name),
+        xlabel="E (keV)",
         canvas=DotCanvas
     )
 end

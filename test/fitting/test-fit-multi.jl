@@ -25,7 +25,7 @@ res2 = result[2]
 
 # both models should fit more or less the same
 @test res1.u ≈ res2.u atol = 1e-2
-@test res1.χ2 ≈ res2.χ2 atol = 1e-2
+@test res1.stats ≈ res2.stats atol = 1e-2
 
 # now change second models data to ensure the normalisations fit independelty 
 dummy_data2 = deepcopy(dummy_data)
@@ -45,7 +45,7 @@ r2 = result[2]
 @test !(r1.u[1] + r1.u[3] ≈ r2.u[1] + r2.u[3])
 
 # now we bind one of the normalisations
-bind!(prob, :K_1)
+bindall!(prob, (:a1, :K))
 
 result = fit(prob, LevenbergMarquadt())
 # ensure bound parameter is identical
@@ -65,17 +65,17 @@ prob = FittingProblem(
 # ensure we can fit this fine
 result = fit(prob, LevenbergMarquadt())
 
-@test result[1].χ2 ≈ 2.86 atol = 1e-2
-@test result[2].χ2 ≈ 0.079 atol = 1e-3
+@test result[1].stats ≈ 2.86 atol = 1e-2
+@test result[2].stats ≈ 0.079 atol = 1e-3
 
 # and we can still bind
 prob = FittingProblem(
     FittableMultiModel(model, model2),
     FittableMultiDataset(dummy_data, dummy_data2),
 )
-bind!(prob, :K_1)
+bindall!(prob, (:a1, :K))
 
 result = fit(prob, LevenbergMarquadt())
 
-@test result[1].χ2 ≈ 2.8627679111508226 atol = 0.1
-@test result[2].χ2 ≈ 0.2460801839134885 atol = 0.1
+@test result[1].stats ≈ 2.8627679111508226 atol = 0.1
+@test result[2].stats ≈ 0.2460801839134885 atol = 0.1

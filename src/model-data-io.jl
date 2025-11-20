@@ -186,11 +186,11 @@ The download is currently unconfigurable, but permits slight control via a numbe
 
 - `progress::Bool = true`
 
-Display a progress bar for the download.
+  Display a progress bar for the download.
 
 - `model_source_url::String = "http://www.star.bris.ac.uk/fbaker/XSPEC-model-data"`
 
-The source URL used to download the model data.
+  The source URL used to download the model data.
 
 All standard XSPEC spectral model data is currently being hosted on the University of Bristol
 astrophysics servers, and should be persistently available to anyone.

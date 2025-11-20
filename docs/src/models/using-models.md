@@ -37,7 +37,7 @@ invokemodel(domain, model)
     ```julia
     length(flux) == length(energy) - 1
     ```
-    Models need not be defined as such, however. See [`AbstractLayout`](@ref) for more.
+    Models need not be defined as such, however. See [`AbstractDataLayout`](@ref) for more.
 
 Models can be composed together following the [Model algebra](@ref). That means to expressive a photoelectric absorption component acting on the power law we can write
 
@@ -48,7 +48,7 @@ model2 = PhotoelectricAbsorption() * model
 The parameters of this [`CompositeModel`](@ref) are are copied from the expression. This means we can modify the `K_1` parameter in `model2` without having to worry that we are changing `model.K`:
 
 ```@example using_models
-model2.K_1.frozen = false
+model2.a1.K.frozen = false
 model2
 ```
 
@@ -107,8 +107,6 @@ All spectral models are a sub-type of [`AbstractSpectralModel`](@ref).
 ```@docs
 AbstractSpectralModel
 SpectralFitting.invoke!
-modelkind
-numbertype
 implementation
 ```
 

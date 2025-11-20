@@ -17,7 +17,7 @@ jobs:
     timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: julia-actions/setup-julia@v2
         with:
           version: '1.11'
@@ -33,19 +33,21 @@ jobs:
             ${{ runner.os }}-
       - name: Setup data directories
         run: |
-          wget --no-check-certificate "https://www.star.bristol.ac.uk/fergus/spectral-fitting/ci-data/1E-1048-5937.tar"
+          wget "https://www.star.bristol.ac.uk/fergus/spectral-fitting/ci-data/1E-1048-5937.tar"
           mkdir ex-datadir
           tar -xf 1E-1048-5937.tar -C ex-datadir/
-      - name: Build documentation
+      - name: Add AstroRegistry and General registries
+        shell: julia --color=yes {0}
         run: |
-          julia -e 'import Pkg; Pkg.Registry.add(Pkg.RegistrySpec(url="https://github.com/astro-group-bristol/AstroRegistry/"))'
-          julia -e 'import Pkg; Pkg.Registry.add(Pkg.RegistrySpec(url="https://github.com/JuliaRegistries/General"))'
-          julia --project=docs -e '
-            using Pkg
-            Pkg.instantiate()
-            Pkg.develop(PackageSpec(path=pwd()))
-            Pkg.develop(PackageSpec(path=joinpath(pwd(), "lib", "XSPECModels")))
-            Pkg.instantiate()'
-      - run: julia --color=yes -tauto --project=docs docs/make.jl
+          import Pkg
+          Pkg.Registry.add(url="https://github.com/astro-group-bristol/AstroRegistry/")
+          Pkg.Registry.add(url="https://github.com/JuliaRegistries/General")
+      - name: Set up environment
+        shell: julia --color=yes --project=docs {0}
+        run: |
+          using Pkg
+          Pkg.instantiate()
+      - name: Build documentation
+        run: julia --color=yes -tauto --project=docs docs/make.jl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

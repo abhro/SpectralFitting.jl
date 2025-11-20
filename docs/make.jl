@@ -1,6 +1,3 @@
-push!(LOAD_PATH, "src")
-push!(LOAD_PATH, "lib/XSPECModels/src")
-
 ENV["GKSwstype"] = "100"
 
 using Documenter
@@ -20,16 +17,17 @@ makedocs(
             "Diverse examples" => "examples/examples.md",
             "A quick guide" => "examples/sherpa-example.md",
         ],
+        "Fitting" => [
+            "parameters.md",
+            # "fitting.md",
+        ],
         "Models" => [
             "Using models" => "models/using-models.md",
             "Model index" => "models/models.md",
             "Composite models" => "models/composite-models.md",
+            "Wrapper models" => "models/wrapper-models.md",
             "Surrogate models" => "models/surrogate-models.md",
             "XSPEC models" => "models/xspec-models.md",
-        ],
-        "Fitting" => [
-            "parameters.md",
-            # "fitting.md",
         ],
         "Datasets" => [
             "Using datasets" => "datasets/datasets.md",
